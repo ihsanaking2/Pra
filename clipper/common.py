@@ -41,9 +41,25 @@ def run(cmd: list[str], cwd: Path | None = None, quiet: bool = True) -> subproce
 
 
 def ffprobe_duration(path: Path) -> float:
-    out = run([need("ffprobe"), "-v", "error", "-show_entries", "format=duration",
-               "-of", "default=nw=1:nk=1", path]).stdout.strip()
-    return float(out)
+    """Length in seconds. Falls back to stream durations, then to decoding, when the header has none."""
+    out = run([need("ffprobe"), "-v", "error", "-show_entries", "format=duration:stream=duration",
+               "-of", "default=nw=1:nk=1", path]).stdout.split()
+    vals = []
+    for v in out:
+        try:
+            vals.append(float(v))
+        except ValueError:
+            pass
+    if vals:
+        return max(vals)
+    # Last resort: decode and read the final timestamp.
+    log_out = subprocess.run([need("ffmpeg"), "-nostats", "-i", str(path), "-map", "0:v:0?", "-map", "0:a:0?",
+                              "-f", "null", "-"], stderr=subprocess.PIPE, text=True).stderr
+    times = re.findall(r"time=(\d+):(\d+):(\d+(?:\.\d+)?)", log_out)
+    if not times:
+        raise ClipperError(f"Can't tell how long {path} is")
+    h, m, s = times[-1]
+    return int(h) * 3600 + int(m) * 60 + float(s)
 
 
 def ffprobe_size(path: Path) -> tuple[int, int]:
