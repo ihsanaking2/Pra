@@ -1,0 +1,28 @@
+# Streamers the daily autopilot clips for the Lunablox67 channel.
+# 'permission' is left empty on purpose: we have NOT confirmed these streamers allow clipping,
+# so descriptions only say "All credit to ..." (never "with permission").
+# If one of them tells clippers to stop, delete their block here.
+
+[streamers.kaicenat]
+display_name = "Kai Cenat"
+credit = "@KaiCenat"
+links = ["https://www.twitch.tv/kaicenat"]
+vods_url = "https://www.twitch.tv/kaicenat/videos?filter=archives"
+permission = ""
+layout = "blur"
+
+[streamers.ishowspeed]
+display_name = "IShowSpeed"
+credit = "@IShowSpeed"
+links = ["https://www.youtube.com/@IShowSpeed"]
+vods_url = "https://www.youtube.com/@IShowSpeed/streams"
+permission = ""
+layout = "blur"
+
+[streamers.marlon]
+display_name = "Marlon"
+credit = "@Marlon"
+links = ["https://kick.com/marlon"]
+vods_url = "https://kick.com/marlon/videos"
+permission = ""
+layout = "blur"

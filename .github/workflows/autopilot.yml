@@ -1,0 +1,95 @@
+name: Daily clips (Lunablox67)
+
+on:
+  schedule:
+    - cron: "23 5 * * *"        # every day 05:23 UTC (streams from the night before are finished)
+  workflow_dispatch:
+    inputs:
+      clips:
+        description: "How many Shorts to make"
+        default: "6"
+  push:
+    branches-ignore: [main]
+    paths: [".github/workflows/autopilot.yml"]   # test run when this file changes on a branch
+
+permissions:
+  contents: write                 # publish the clips as a release + save state
+
+concurrency:
+  group: autopilot
+  cancel-in-progress: false
+
+jobs:
+  clips:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Install clipper
+        run: |
+          pip install -q -e ".[captions]"
+          pip install -q -U "yt-dlp[default,curl-cffi]"
+
+      - name: Install TwitchDownloaderCLI (Twitch chat)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$HOME/bin"
+          if gh release download -R lay295/TwitchDownloader --pattern '*CLI*Linux-x64.zip' -D /tmp/tdl; then
+            unzip -o -q /tmp/tdl/*.zip -d "$HOME/bin" && chmod +x "$HOME/bin/TwitchDownloaderCLI"
+            echo "$HOME/bin" >> "$GITHUB_PATH"
+          else
+            echo "TwitchDownloaderCLI not available - Twitch clips will use audio only"
+          fi
+
+      - name: Cache Whisper model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: whisper-small-v1
+
+      - name: YouTube cookies (optional secret YTDLP_COOKIES)
+        env:
+          COOKIES: ${{ secrets.YTDLP_COOKIES }}
+        run: |
+          if [ -n "$COOKIES" ]; then
+            printf '%s' "$COOKIES" > "$RUNNER_TEMP/cookies.txt"
+            echo "YTDLP_COOKIES_FILE=$RUNNER_TEMP/cookies.txt" >> "$GITHUB_ENV"
+          fi
+
+      - name: Make today's Shorts
+        run: |
+          clipper autopilot --clips "${{ github.event.inputs.clips || (github.event_name == 'push' && '3') || '6' }}" --time-budget 240
+
+      - name: Publish clips as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n=$(python -c "import json;print(len(json.load(open('autopilot_out/manifest.json'))['clips']))")
+          echo "Made $n clips"
+          if [ "$n" -gt 0 ]; then
+            tag="clips-$(date -u +%Y%m%d)-${{ github.run_id }}"
+            gh release create "$tag" autopilot_out/*.mp4 autopilot_out/manifest.json \
+              --target "${{ github.sha }}" --title "Clips $(date -u +%Y-%m-%d)" \
+              --notes "$n Shorts for Lunablox67. manifest.json has titles and descriptions." --latest
+          fi
+
+      - name: Save state
+        if: always()
+        run: |
+          git config user.name "clipper-bot"
+          git config user.email "clipper-bot@users.noreply.github.com"
+          git add state/autopilot.json || true
+          if ! git diff --cached --quiet; then
+            git commit -m "Update autopilot state [skip ci]"
+            git pull --rebase -q origin "${{ github.ref_name }}" && git push origin "HEAD:${{ github.ref_name }}"
+          fi

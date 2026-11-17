@@ -90,6 +90,17 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--count", type=int, default=15)
     a.add_argument("--length", type=int, default=35)
 
+    ap = sub.add_parser("autopilot", help="hands-off daily run: new VODs -> Shorts + manifest.json")
+    ap.add_argument("--config", type=Path, default=Path("autopilot.toml"))
+    ap.add_argument("--out", type=Path, default=Path("autopilot_out"))
+    ap.add_argument("--state", type=Path, default=Path("state/autopilot.json"))
+    ap.add_argument("--work", type=Path, default=Path("work/autopilot"))
+    ap.add_argument("--clips", type=int, default=6, help="Shorts to make per run (default 6)")
+    ap.add_argument("--length", type=int, default=35)
+    ap.add_argument("--vods-per-streamer", type=int, default=1)
+    ap.add_argument("--whisper-model", default="small")
+    ap.add_argument("--time-budget", type=int, default=240, help="minutes")
+
     args = p.parse_args(argv)
     try:
         if args.cmd == "download":
@@ -120,6 +131,10 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "upload":
             from .upload import upload
             upload(Job(args.job), args.what, args.privacy, args.publish_at, dry_run=args.dry_run)
+        elif args.cmd == "autopilot":
+            from .autopilot import autopilot
+            autopilot(args.config, args.out, args.state, args.work, args.clips, args.length,
+                      args.vods_per_streamer, whisper_model=args.whisper_model, time_budget_min=args.time_budget)
         elif args.cmd == "auto":
             from .download import download
             from .highlights import find

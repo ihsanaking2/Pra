@@ -33,7 +33,7 @@ def compile_long(job: Job, title: str | None = None) -> Path:
         desc.append(f"📺 Full stream: {job.meta['url']}")
     if streamer:
         desc += [f"🔗 {link}" for link in streamer.links]
-    desc += ["", f"All credit to {name}. Clipped with permission."]
+    desc += ["", f"All credit to {name}." + (" Clipped with permission." if streamer and streamer.permission else "")]
     write_json(out.with_suffix(".json"), {
         "file": out.name, "format": "compilation",
         "title": (title or f"{name} - Best Stream Moments")[:100],

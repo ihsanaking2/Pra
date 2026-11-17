@@ -45,14 +45,13 @@ def transcribe(audio: Path, model_size: str = "small", language: str | None = No
     return words
 
 
-def clip_words(job: Job, clip: dict, model_size: str, language: str | None) -> list[dict]:
-    cache_dir = job.out_dir / "captions"
+def clip_words(video: Path, cache_dir: Path, clip: dict, model_size: str, language: str | None) -> list[dict]:
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache = cache_dir / f"{clip['id']}_{int(clip['start'])}_{int(clip['end'])}.json"
     if cache.exists():
         return read_json(cache)
     wav = cache_dir / f"{clip['id']}.wav"
-    run([need("ffmpeg"), "-y", "-v", "error", "-ss", f"{clip['start']:.2f}", "-i", job.video,
+    run([need("ffmpeg"), "-y", "-v", "error", "-ss", f"{clip['start']:.2f}", "-i", video,
          "-t", f"{clip['end'] - clip['start']:.2f}", "-vn", "-ac", "1", "-ar", "16000", wav])
     words = transcribe(wav, model_size, language)
     wav.unlink(missing_ok=True)
@@ -152,10 +151,10 @@ def long_filter() -> str:
             f"pad={LONG_W}:{LONG_H}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[base]")
 
 
-def encode(job: Job, clip: dict, out: Path, vfilter: str, ass_name: str) -> None:
+def encode(video: Path, clip: dict, out: Path, vfilter: str, ass_name: str) -> None:
     graph = vfilter + f";[base]subtitles={ass_name}[v]"
     run([need("ffmpeg"), "-y", "-v", "error",
-         "-ss", f"{clip['start']:.2f}", "-i", job.video.resolve(), "-t", f"{clip['end'] - clip['start']:.2f}",
+         "-ss", f"{clip['start']:.2f}", "-i", Path(video).resolve(), "-t", f"{clip['end'] - clip['start']:.2f}",
          "-filter_complex", graph, "-map", "[v]", "-map", "0:a?",
          "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
          "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", "48000", "-c:a", "aac", "-b:a", "160k",
@@ -173,7 +172,7 @@ def description(job: Job, clip: dict, streamer: Streamer | None, short: bool) ->
     if streamer:
         for link in streamer.links:
             lines.append(f"🔗 {link}")
-    lines += ["", f"All credit to {name}. Clipped with permission."]
+    lines += ["", f"All credit to {name}." + (" Clipped with permission." if streamer and streamer.permission else "")]
     if short:
         lines += ["", "#shorts"]
     return "\n".join(lines).strip()
@@ -210,7 +209,7 @@ def render(job: Job, formats: tuple[str, ...] = ("short", "long"), layout: str |
         clip.setdefault("title", "")
         if not clip["title"]:
             clip["title"] = default_title(job, clip, streamer)
-        words = clip_words(job, clip, whisper_model, language) if captions else []
+        words = clip_words(job.video, job.out_dir / "captions", clip, whisper_model, language) if captions else []
         for fmt in want:
             is_short = fmt == "short"
             if is_short and dur > 180:
@@ -236,7 +235,7 @@ def render(job: Job, formats: tuple[str, ...] = ("short", "long"), layout: str |
                                      caption_margin=CAPTION_MARGIN.get(layout, 470)), encoding="utf-8")
             vf = short_filter(layout, facecam) if is_short else long_filter()
             log(f"  rendering {out.name}  ({dur:.0f}s, {'Short/' + layout if is_short else '16:9'})")
-            encode(job, clip, out, vf, ass.name)
+            encode(job.video, clip, out, vf, ass.name)
             write_json(meta_path, meta)
             made.append(out)
     log(f"Done: {len(made)} videos in {job.out_dir}")
