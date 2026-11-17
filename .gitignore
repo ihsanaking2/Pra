@@ -1,0 +1,7 @@
+work/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+client_secret*.json
+token.json
+channels.toml

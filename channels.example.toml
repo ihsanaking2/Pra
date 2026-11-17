@@ -1,0 +1,27 @@
+# Copy this file to channels.toml and add the streamers you have permission to clip.
+# Every clip gets the credit + links below in its description and the credit on screen.
+
+[streamers.example]
+display_name = "ExampleStreamer"
+credit = "@ExampleStreamer"                       # shown on screen in every clip
+links = [
+  "https://www.twitch.tv/examplestreamer",
+  "https://www.youtube.com/@examplestreamer",
+]
+# Where their past broadcasts live (used by `clipper check`)
+vods_url = "https://www.twitch.tv/examplestreamer/videos?filter=archives"
+# Write down WHERE they said clipping is allowed. Keep a screenshot too.
+permission = "Clipping program rules in their Discord #clippers channel, read 2026-11-17"
+# Shorts layout: blur (works for anything), center (just chatting), split (facecam on top)
+layout = "split"
+# For split: where the facecam is, as fractions of the frame [x, y, width, height]
+# e.g. bottom-right cam taking a quarter of the width: [0.75, 0.70, 0.25, 0.30]
+facecam = [0.75, 0.0, 0.25, 0.30]
+
+[streamers.kickexample]
+display_name = "KickExample"
+credit = "@KickExample"
+links = ["https://kick.com/kickexample"]
+vods_url = "https://kick.com/kickexample/videos"
+permission = "Said 'anyone can clip my streams' on stream 2026-10-02 (VOD 1:12:30)"
+layout = "blur"
