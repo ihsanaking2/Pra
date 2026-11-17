@@ -34,6 +34,14 @@ TITLE_TEMPLATES = [
 ]
 
 
+def why(e: Exception) -> str:
+    lines = [l.strip() for l in str(e).splitlines() if l.strip()]
+    if not lines:
+        return type(e).__name__
+    reason = next((l for l in reversed(lines) if "ERROR" in l or "Error" in l), lines[-1])
+    return reason[:400] if len(lines) > 1 else lines[0][:400]
+
+
 # --------------------------------------------------------------------------- listing VODs
 
 def platform_of(url: str) -> str:
@@ -82,6 +90,8 @@ def list_vods(s: Streamer, limit: int = 2) -> list[dict]:
         slug = _kick_slug(s.vods_url)
         data = _kick_get(f"https://kick.com/api/v2/channels/{slug}/videos")
         items = data if isinstance(data, list) else data.get("data", [])
+        if not items:
+            log(f"  Kick returned no videos for '{slug}': {str(data)[:300]}")
         for it in items:
             if it.get("is_live"):
                 continue
@@ -141,7 +151,7 @@ def fetch_chat(vod: dict, folder: Path, timeout_min: int = 30) -> Path | None:
                            check=True, timeout=timeout_min * 60, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             return out if out.exists() else None
     except (ClipperError, subprocess.SubprocessError, OSError) as e:
-        log(f"  no chat ({type(e).__name__}): {str(e).splitlines()[0][:200] if str(e) else ''}")
+        log(f"  no chat: {why(e)}")
     return None
 
 
@@ -267,8 +277,10 @@ def autopilot(config: Path, out: Path, state_file: Path, work: Path, clips_per_d
         try:
             vods = list_vods(s, limit=vods_per_streamer)
         except Exception as e:  # one broken site shouldn't stop the others
-            log(f"  could not list VODs: {str(e).splitlines()[0][:300]}")
+            log(f"  could not list VODs: {why(e)}")
             continue
+        if not vods:
+            log("  no finished streams found")
         for vod in vods:
             if vod["id"] in state["done_vods"]:
                 log(f"  already done: {vod['title'][:60]}")
@@ -277,7 +289,7 @@ def autopilot(config: Path, out: Path, state_file: Path, work: Path, clips_per_d
                 new_cands += analyse_vod(vod, s, work, length, per_vod)
                 state["done_vods"].append(vod["id"])
             except Exception as e:
-                log(f"  failed: {str(e).splitlines()[0][:300]}")
+                log(f"  failed: {why(e)}")
 
     pool = new_cands + state["backlog"]
     chosen = choose(pool, clips_per_day)
@@ -317,7 +329,8 @@ def autopilot(config: Path, out: Path, state_file: Path, work: Path, clips_per_d
             })
             state["posted"].append({"vod": c["vod"]["id"], "start": c["start"], "file": mp4.name})
         except Exception as e:
-            log(f"  failed: {str(e).splitlines()[0][:300]}")
+            log(f"  failed: {why(e)}")
+            state["backlog"].append(c)  # try this moment again next run
 
     write_json(out / "manifest.json", {"date": today.isoformat(), "clips": manifest})
     state["done_vods"] = state["done_vods"][-300:]

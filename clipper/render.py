@@ -31,18 +31,31 @@ def transcribe(audio: Path, model_size: str = "small", language: str | None = No
     except ImportError:
         log("Captions skipped: run 'pip install faster-whisper' to turn them on.")
         return []
-    if model_size not in _model_cache:
-        log(f"Loading Whisper '{model_size}' model (first time downloads it)...")
-        _model_cache[model_size] = WhisperModel(model_size, device="auto", compute_type="int8")
-    segments, _ = _model_cache[model_size].transcribe(str(audio), word_timestamps=True, language=language,
-                                                      vad_filter=True)
-    words = []
-    for seg in segments:
-        for w in seg.words or []:
-            text = w.word.strip()
-            if text:
-                words.append({"start": float(w.start), "end": float(w.end), "text": text})
-    return words
+    import wave
+
+    import numpy as np
+    # Hand Whisper raw samples (our wav is 16 kHz mono 16-bit) instead of a file path, so it never
+    # has to open the file itself - that path breaks with some PyAV versions.
+    with wave.open(str(audio), "rb") as wf:
+        samples = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
+    if len(samples) < 1600:
+        return []
+    try:
+        if model_size not in _model_cache:
+            log(f"Loading Whisper '{model_size}' model (first time downloads it)...")
+            _model_cache[model_size] = WhisperModel(model_size, device="auto", compute_type="int8")
+        segments, _ = _model_cache[model_size].transcribe(samples, word_timestamps=True, language=language,
+                                                          vad_filter=True)
+        words = []
+        for seg in segments:
+            for w in seg.words or []:
+                text = w.word.strip()
+                if text:
+                    words.append({"start": float(w.start), "end": float(w.end), "text": text})
+        return words
+    except Exception as e:  # captions are nice-to-have; never lose a clip over them
+        log(f"Captions failed ({type(e).__name__}: {e}); making the clip without captions.")
+        return []
 
 
 def clip_words(video: Path, cache_dir: Path, clip: dict, model_size: str, language: str | None) -> list[dict]:
