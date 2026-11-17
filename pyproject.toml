@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clipper"
+version = "0.1.0"
+description = "Turn live stream VODs into YouTube Shorts and highlight videos"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.24", "yt-dlp>=2024.10.0"]
+
+[project.optional-dependencies]
+captions = ["faster-whisper>=1.0"]
+upload = ["google-api-python-client>=2.100", "google-auth-oauthlib>=1.1"]
+all = ["faster-whisper>=1.0", "google-api-python-client>=2.100", "google-auth-oauthlib>=1.1"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+clipper = "clipper.cli:main"
+
+[tool.setuptools]
+packages = ["clipper"]
